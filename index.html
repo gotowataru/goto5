@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>オセロゲーム</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(8, 50px);
+            grid-template-rows: repeat(8, 50px);
+            border: 2px solid #000;
+        }
+        .cell {
+            width: 50px;
+            height: 50px;
+            background-color: green;
+            border: 1px solid #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+        .cell.black {
+            background-image: url('black.png'); /* 青匹の画像 */
+            background-size: cover;
+            background-position: center;
+        }
+        .cell.white {
+            background-image: url('white.png'); /* 赤匹の画像 */
+            background-size: cover;
+            background-position: center;
+        }
+        #status {
+            margin-top: 20px;
+            font-size: 18px;
+        }
+        #score {
+            margin-top: 10px;
+            font-size: 16px;
+        }
+        #pass {
+            margin-top: 10px;
+            padding: 8px 16px;
+            font-size: 16px;
+            cursor: pointer;
+            display: none; /* 初期非表示 */
+        }
+        #result {
+            margin-top: 10px;
+            font-size: 20px;
+            font-weight: bold;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>オセロゲーム（vs コンピュータ）</h1>
+    <div id="board"></div>
+    <div id="status">現在のプレイヤー: 青（お前）</div>
+    <div id="score">青: 2 匹, 赤: 2 匹</div>
+    <button id="pass" onclick="handlePass()">パス</button>
+    <div id="result"></div>
+
+    <script>
+        const board = [];
+        const size = 8;
+        let currentPlayer = 'black';
+        let gameActive = true;
+
+        // ボードの初期化
+        function initBoard() {
+            const boardElement = document.getElementById('board');
+            for (let i = 0; i < size; i++) {
+                board[i] = [];
+                for (let j = 0; j < size; j++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    cell.addEventListener('click', handleClick);
+                    boardElement.appendChild(cell);
+                    board[i][j] = null;
+                }
+            }
+            // 初期配置
+            board[3][3] = 'white';
+            board[3][4] = 'black';
+            board[4][3] = 'black';
+            board[4][4] = 'white';
+            updateBoard();
+        }
+
+        // ボードの表示更新
+        function updateBoard() {
+            for (let i = 0; i < size; i++) {
+                for (let j = 0; j < size; j++) {
+                    const cell = document.querySelector(`.cell[data-row="${i}"][data-col="${j}"]`);
+                    cell.className = 'cell';
+                    if (board[i][j]) {
+                        cell.classList.add(board[i][j]);
+                    }
+                }
+            }
+            // 現在の匹の数を表示
+            const { blackCount, whiteCount } = countStones();
+            document.getElementById('score').textContent = `青: ${blackCount} 匹, 赤: ${whiteCount} 匹`;
+
+            // パスボタンの表示制御
+            const passButton = document.getElementById('pass');
+            const validMoves = getValidMoves(currentPlayer);
+            if (currentPlayer === 'black' && validMoves.length === 0 && gameActive) {
+                passButton.style.display = 'block';
+                document.getElementById('status').textContent = '置ける場所がありません。パスしてください。';
+            } else {
+                passButton.style.display = 'none';
+                document.getElementById('status').textContent = `現在のプレイヤー: ${currentPlayer === 'black' ? '青（お前）' : '赤（コンピュータ）'}`;
+            }
+
+            checkGameEnd();
+        }
+
+        // クリックハンドラ（プレイヤーの手）
+        function handleClick(event) {
+            if (!gameActive || currentPlayer !== 'black') return;
+            const row = parseInt(event.target.dataset.row);
+            const col = parseInt(event.target.dataset.col);
+            if (canPlace(row, col, currentPlayer)) {
+                placeStone(row, col, currentPlayer);
+                currentPlayer = 'white';
+                updateBoard();
+                if (gameActive) {
+                    setTimeout(computerMove, 500); // コンピュータの手を遅延実行
+                }
+            }
+        }
+
+        // パスハンドラ
+        function handlePass() {
+            if (!gameActive || currentPlayer !== 'black') return;
+            currentPlayer = 'white';
+            updateBoard();
+            if (gameActive) {
+                setTimeout(computerMove, 500);
+                document.getElementById('status').textContent = 'お前がパスしました。';
+            }
+        }
+
+        // コンピュータの手（ランダム）
+        function computerMove() {
+            if (!gameActive || currentPlayer !== 'white') return;
+            const validMoves = getValidMoves(currentPlayer);
+            if (validMoves.length > 0) {
+                const [row, col] = validMoves[Math.floor(Math.random() * validMoves.length)];
+                placeStone(row, col, currentPlayer);
+                currentPlayer = 'black';
+                updateBoard();
+            } else {
+                currentPlayer = 'black';
+                updateBoard();
+                if (gameActive) {
+                    document.getElementById('status').textContent = 'コンピュータがパスしました。現在のプレイヤー: 青（お前）';
+                }
+            }
+        }
+
+        // 有効な手の取得
+        function getValidMoves(player) {
+            const validMoves = [];
+            for (let i = 0; i < size; i++) {
+                for (let j = 0; j < size; j++) {
+                    if (canPlace(i, j, player)) {
+                        validMoves.push([i, j]);
+                    }
+                }
+            }
+            return validMoves;
+        }
+
+        // 匹を置けるかチェック
+        function canPlace(row, col, player) {
+            if (board[row][col] !== null) return false;
+            const directions = [
+                [-1, 0], [1, 0], [0, -1], [0, 1],
+                [-1, -1], [-1, 1], [1, -1], [1, 1]
+            ];
+            for (const [dr, dc] of directions) {
+                let r = row + dr;
+                let c = col + dc;
+                let foundOpponent = false;
+                while (r >= 0 && r < size && c >= 0 && c < size && board[r][c] !== null && board[r][c] !== player) {
+                    foundOpponent = true;
+                    r += dr;
+                    c += dc;
+                }
+                if (foundOpponent && r >= 0 && r < size && c >= 0 && c < size && board[r][c] === player) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // 匹を置き、ひっくり返す
+        function placeStone(row, col, player) {
+            board[row][col] = player;
+            const directions = [
+                [-1, 0], [1, 0], [0, -1], [0, 1],
+                [-1, -1], [-1, 1], [1, -1], [1, 1]
+            ];
+            for (const [dr, dc] of directions) {
+                let r = row + dr;
+                let c = col + dc;
+                let toFlip = [];
+                while (r >= 0 && r < size && c >= 0 && c < size && board[r][c] !== null && board[r][c] !== player) {
+                    toFlip.push([r, c]);
+                    r += dr;
+                    c += dc;
+                }
+                if (r >= 0 && r < size && c >= 0 && c < size && board[r][c] === player) {
+                    for (const [fr, fc] of toFlip) {
+                        board[fr][fc] = player;
+                    }
+                }
+            }
+        }
+
+        // ゲーム終了チェックと勝敗判定
+        function checkGameEnd() {
+            const blackMoves = getValidMoves('black');
+            const whiteMoves = getValidMoves('white');
+
+            if (blackMoves.length === 0 && whiteMoves.length === 0) {
+                gameActive = false;
+                const resultElement = document.getElementById('result');
+                const { blackCount, whiteCount } = countStones();
+                let resultText = `ゲーム終了！ 青（お前）: ${blackCount} 匹, 赤（コンピュータ）: ${whiteCount} 匹<br>`;
+                if (blackCount > whiteCount) {
+                    resultText += 'お前の勝利！';
+                } else if (whiteCount > blackCount) {
+                    resultText += 'コンピュータの勝利！';
+                } else {
+                    resultText += '引き分け！';
+                }
+                resultElement.innerHTML = resultText;
+                resultElement.style.display = 'block';
+                document.getElementById('status').textContent = 'ゲーム終了';
+                document.getElementById('pass').style.display = 'none';
+            }
+        }
+
+        // 匹の数をカウント
+        function countStones() {
+            let blackCount = 0;
+            let whiteCount = 0;
+            for (let i = 0; i < size; i++) {
+                for (let j = 0; j < size; j++) {
+                    if (board[i][j] === 'black') blackCount++;
+                    if (board[i][j] === 'white') whiteCount++;
+                }
+            }
+            return { blackCount, whiteCount };
+        }
+
+        // ゲーム開始
+        initBoard();
+    </script>
+</body>
+</html>
